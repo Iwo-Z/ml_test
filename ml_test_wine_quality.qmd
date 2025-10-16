@@ -143,8 +143,10 @@ p1 + p2 + p3
 
 # Podział na zbiór treningowy i testowy
 
+Dane zostały podzielone w proporcji **80% / 20%** na zbiór treningowy i testowy z użyciem stratyfikacji względem zmiennej `quality`. Dzięki temu rozkład jakości pozostaje podobny w obu zbiorach, co zwiększa wiarygodność oceny modelu.
+
+
 ```{r}
-set.seed(2025)
 split <- initial_split(wine_raw, prop = 0.8, strata = quality)
 train_tbl <- training(split)
 test_tbl  <- testing(split)
@@ -191,16 +193,16 @@ Każdy model wykorzystuje inne założenia i metody regularyzacji lub uogólnien
 ```{r models-setup}
 # 1. Linear regression (OLS)
 lm_spec <- linear_reg() |>
-  set_engine("lm") |>
+  set_engine("lm", importance = "impurity") |>
   set_mode("regression")
 
 # 2. Regularized (glmnet)
 glmnet_spec <- linear_reg(penalty = tune(), mixture = tune()) |>
-  set_engine("glmnet")
+  set_engine("glmnet", importance = "impurity")
 
 # 3. Random forest (ranger)
 rf_spec <- rand_forest(mtry = tune(), trees = 1000, min_n = tune()) |>
-  set_engine("ranger") |>
+  set_engine("ranger", importance = "impurity") |>
   set_mode("regression")
 
 # 4. Gradient boosting (xgboost)
@@ -209,12 +211,97 @@ xgb_spec <- boost_tree(trees = tune(), tree_depth = tune(), learn_rate = tune(),
   set_mode("regression")
 ```
 
+# Workflow
 
+Workflow on wcześniej zdefiniowaną recepturę (`wine_recipe`) z wybranym modelem uczenia maszynowego, dzięki czemu cały proces przygotowania danych i trenowania odbywa się w jednej strukturze.
 
+```{r}
+library(workflows)
 
+wf_lm <- workflow() |> add_recipe(wine_recipe) |> add_model(lm_spec)
+wf_glmnet <- workflow() |> add_recipe(wine_recipe) |> add_model(glmnet_spec)
+wf_rf <- workflow() |> add_recipe(wine_recipe) |> add_model(rf_spec)
+wf_xgb <- workflow() |> add_recipe(wine_recipe) |> add_model(xgb_spec)
+```
 
+# Walidacja krzyżowa i plan strojenia
 
+Tworzony jest plan walidacji krzyżowej (5-fold CV), który pozwala ocenić modele na różnych podzbiorach danych.
 
+Dodatkowo określane są zakresy hiperparametrów i siatki (grid) dla każdego modelu, które zostaną użyte w procesie strojenia.
+
+```{r}
+library(dials)
+library(rsample)
+
+cv_splits <- vfold_cv(train_tbl, v = 5, strata = quality)
+
+glmnet_params <- parameters(penalty(), mixture())
+rf_params <- parameters(
+  mtry(range = c(1, floor(sqrt(ncol(train_tbl)-1)))), 
+  min_n()
+)
+
+xgb_params <- parameters(
+  tree_depth(), 
+  trees(), 
+  learn_rate(), 
+  loss_reduction(), 
+  sample_size = sample_prop(range = c(0.5, 1.0))
+)
+
+xgb_params_final <- finalize(xgb_params, train_tbl)
+
+# Create grids
+glmnet_grid <- grid_regular(glmnet_params, levels = 5)
+rf_grid <- grid_random(rf_params, size = 20)
+xgb_grid <- grid_random(xgb_params_final, size = 20)
+```
+
+# Strojenie modeli (tuning)
+
+Tutaj każdy model jest strojeny (tuningowany) przy użyciu wcześniej zdefiniowanej walidacji i siatek parametrów.
+Wyniki oceniamy na podstawie trzech metryk: RMSE, R² i MAE.
+
+```{r}
+library(tune)
+library(glmnet)
+library(xgboost)
+library(ranger)
+
+reg_metrics <- metric_set(rmse, rsq, mae)
+
+# GLMnet
+glmnet_res <- tune_grid(
+  wf_glmnet, 
+  resamples = cv_splits, 
+  grid = glmnet_grid, 
+  metrics = reg_metrics,
+  control = control_grid(save_pred = FALSE, verbose = TRUE)
+)
+
+collect_metrics(glmnet_res)
+
+# Random Forest
+rf_res <- tune_grid(
+  wf_rf, 
+  resamples = cv_splits, 
+  grid = rf_grid, 
+  metrics = reg_metrics,
+  control = control_grid(verbose = TRUE)
+)
+collect_metrics(rf_res)
+
+# XGBoost
+xgb_res <- tune_grid(
+  wf_xgb, 
+  resamples = cv_splits, 
+  grid = xgb_grid, 
+  metrics = reg_metrics,
+  control = control_grid(verbose = TRUE)
+)
+collect_metrics(xgb_res)
+```
 
 
 

@@ -3101,6 +3101,9 @@ vertical-align: -.125em;
   <li><a href="#workflow" id="toc-workflow" class="nav-link" data-scroll-target="#workflow"><span class="header-section-number">8</span> Workflow</a></li>
   <li><a href="#walidacja-krzyżowa-i-plan-strojenia" id="toc-walidacja-krzyżowa-i-plan-strojenia" class="nav-link" data-scroll-target="#walidacja-krzyżowa-i-plan-strojenia"><span class="header-section-number">9</span> Walidacja krzyżowa i plan strojenia</a></li>
   <li><a href="#strojenie-modeli-tuning" id="toc-strojenie-modeli-tuning" class="nav-link" data-scroll-target="#strojenie-modeli-tuning"><span class="header-section-number">10</span> Strojenie modeli (tuning)</a></li>
+  <li><a href="#porównanie-model---wybór-najlepszych-parametrów-i-finalny-fit" id="toc-porównanie-model---wybór-najlepszych-parametrów-i-finalny-fit" class="nav-link" data-scroll-target="#porównanie-model---wybór-najlepszych-parametrów-i-finalny-fit"><span class="header-section-number">11</span> Porównanie model - wybór najlepszych parametrów i finalny fit</a></li>
+  <li><a href="#interpretowalność-ważność-cech" id="toc-interpretowalność-ważność-cech" class="nav-link" data-scroll-target="#interpretowalność-ważność-cech"><span class="header-section-number">12</span> Interpretowalność: ważność cech</a></li>
+  <li><a href="#wnioski" id="toc-wnioski" class="nav-link" data-scroll-target="#wnioski"><span class="header-section-number">13</span> Wnioski</a></li>
   </ul>
 </nav>
 </div>
@@ -3969,6 +3972,126 @@ pH                                     pH -0.05773139</code></pre>
 # ℹ 4 more variables: mean &lt;dbl&gt;, n &lt;int&gt;, std_err &lt;dbl&gt;, .config &lt;chr&gt;</code></pre>
 </div>
 </div>
+</section>
+<section id="porównanie-model---wybór-najlepszych-parametrów-i-finalny-fit" class="level1" data-number="11">
+<h1 data-number="11"><span class="header-section-number">11</span> Porównanie model - wybór najlepszych parametrów i finalny fit</h1>
+<p>Na podstawie wyników walidacji wybierane są najlepsze hiperparametry (według RMSE), a następnie model jest trenowany ponownie na całym zbiorze treningowym i oceniany na zbiorze testowym.</p>
+<p>Zbierzemy wyniki dla wszystkich modeli i porównamy RMSE oraz R^2.</p>
+<div class="cell">
+<details open class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>best_rf <span class="ot">&lt;-</span> <span class="fu">select_best</span>(rf_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>best_glmnet <span class="ot">&lt;-</span> <span class="fu">select_best</span>(glmnet_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>best_xgb <span class="ot">&lt;-</span> <span class="fu">select_best</span>(xgb_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>final_rf <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_rf, best_rf)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>final_glmnet <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_glmnet, best_glmnet)</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>final_xgb <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_xgb, best_xgb)</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>fit_rf <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_rf, <span class="at">data =</span> train_tbl)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>fit_glmnet <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_glmnet, <span class="at">data =</span> train_tbl)</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>fit_xgb <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_xgb, <span class="at">data =</span> train_tbl)</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>fit_lm <span class="ot">&lt;-</span> <span class="fu">fit</span>(wf_lm, <span class="at">data =</span> train_tbl)</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>evaluate_on_test <span class="ot">&lt;-</span> <span class="cf">function</span>(fit_wf, test_data){</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  pred <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit_wf, test_data) <span class="sc">|&gt;</span> <span class="fu">bind_cols</span>(test_data <span class="sc">|&gt;</span> <span class="fu">select</span>(quality))</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(<span class="at">rmse =</span> yardstick<span class="sc">::</span><span class="fu">rmse_vec</span>(<span class="at">truth =</span> pred<span class="sc">$</span>quality, <span class="at">estimate =</span> pred<span class="sc">$</span>.pred),</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>         <span class="at">rsq  =</span> yardstick<span class="sc">::</span><span class="fu">rsq_vec</span>(<span class="at">truth =</span> pred<span class="sc">$</span>quality, <span class="at">estimate =</span> pred<span class="sc">$</span>.pred))</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>res_rf <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_rf, test_tbl)</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>res_glmnet <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_glmnet, test_tbl)</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>res_xgb <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_xgb, test_tbl)</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>res_lm <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_lm, test_tbl)</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(<span class="at">lm =</span> res_lm, <span class="at">glmnet =</span> res_glmnet, <span class="at">rf =</span> res_rf, <span class="at">xgb =</span> res_xgb, <span class="at">.id =</span> <span class="st">&quot;model&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 4 × 3
+  model   rmse   rsq
+  &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+1 lm     0.685 0.346
+2 glmnet 0.685 0.347
+3 rf     0.607 0.496
+4 xgb    0.585 0.522</code></pre>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Model</th>
+<th style="text-align: right;">RMSE</th>
+<th style="text-align: right;">R²</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Regresja liniowa (lm)</strong></td>
+<td style="text-align: right;">0.685</td>
+<td style="text-align: right;">0.346</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>GLMNet</strong></td>
+<td style="text-align: right;">0.685</td>
+<td style="text-align: right;">0.347</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>Random Forest (rf)</strong></td>
+<td style="text-align: right;">0.607</td>
+<td style="text-align: right;">0.496</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>XGBoost (xgb)</strong></td>
+<td style="text-align: right;">0.585</td>
+<td style="text-align: right;">0.522</td>
+</tr>
+</tbody>
+</table>
+<p>Modele nieliniowe (<strong>Random Forest</strong> i <strong>XGBoost</strong>) osiągnęły wyraźnie lepsze wyniki niż proste modele liniowe.<br>
+Najniższy błąd RMSE (0.585) oraz najwyższy współczynnik determinacji R² (0.522) uzyskał <strong>model XGBoost</strong>, co wskazuje na jego największą zdolność do odwzorowania zależności między cechami chemicznymi a oceną jakości wina.</p>
+</section>
+<section id="interpretowalność-ważność-cech" class="level1" data-number="12">
+<h1 data-number="12"><span class="header-section-number">12</span> Interpretowalność: ważność cech</h1>
+<div class="cell">
+<details open class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>fit_rf <span class="sc">|&gt;</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull_workflow_fit</span>() <span class="sc">|&gt;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  vip<span class="sc">::</span><span class="fu">vip</span>(<span class="at">num_features =</span> <span class="dv">15</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img role="img" src="data:image/png;base64,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" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Dla modelu Random Forest wygenerowano wykres <strong>ważności cech</strong>.<br>
+Najistotniejsze zmienne wpływające na ocenę jakości wina to:</p>
+<ul>
+<li><strong>alcohol</strong> – największy pozytywny wpływ na jakość,<br>
+</li>
+<li><strong>volatile acidity</strong> – silny negatywny wpływ (większa kwasowość → niższa jakość),<br>
+</li>
+<li><strong>sulphates</strong> i <strong>citric acid</strong> – umiarkowany wpływ dodatni,<br>
+</li>
+<li><strong>density</strong> i <strong>total sulfur dioxide</strong> – mniejszy, ale negatywny wpływ.</li>
+</ul>
+<p>Oznacza to, że wina o wyższej zawartości alkoholu i umiarkowanej kwasowości są oceniane jako lepsze.</p>
+</section>
+<section id="wnioski" class="level1" data-number="13">
+<h1 data-number="13"><span class="header-section-number">13</span> Wnioski</h1>
+<ul>
+<li><strong>Najlepszym modelem</strong> w tym zadaniu okazał się <strong>XGBoost</strong>, osiągając RMSE = 0.585 i R² = 0.522.<br>
+</li>
+<li><strong>Random Forest</strong> uzyskał podobne, lecz nieco słabsze wyniki RMSE = 0.607, R² = 0.496.<br>
+</li>
+<li><strong>Modele liniowe (OLS i GLMNet)</strong> nie radziły sobie tak dobrze, co sugeruje, że zależności między cechami chemicznymi a jakością wina są <strong>nieliniowe</strong>.<br>
+</li>
+<li>Najważniejszymi cechami determinującymi jakość wina są: <strong>zawartość alkoholu</strong>, <strong>kwasowość lotna</strong>.</li>
+<li>Dane z zestawu UCI Wine Quality potwierdzają, że właściwości chemiczne wina pozwalają z umiarkowaną skutecznością przewidywać jego ocenę sensoryczną.</li>
+</ul>
 <!-- -->
 
 </section>
@@ -4594,312 +4717,384 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
 });
 </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class>
-<div class="sourceCode" id="cb26" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> &quot;ml_test - Wine Quality&quot;</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> &quot;Iwo&quot;</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span><span class="co"> </span></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co">    self-contained: true</span></span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 4</span></span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-location: right</span></span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-title: &quot;Spis treści&quot;</span></span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co">    number-sections: true</span></span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co">    number-depth: 4</span></span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co">    number-offset: 0</span></span>
-<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: show</span></span>
-<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a><span class="co">    code-summary: &quot;Show the code&quot;</span></span>
-<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="co">    code-block-bg: true</span></span>
-<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a><span class="co">    code-block-border-left: &quot;black&quot;</span></span>
-<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-line-numbers: false</span></span>
-<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-copy: true</span></span>
-<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a><span class="co">    html-math-method: katex</span></span>
-<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a><span class="co">    smooth-scroll: true</span></span>
-<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a><span class="co">    anchor-sections: true</span></span>
-<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a><span class="co">    link-external-icon: true</span></span>
-<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a><span class="co">    link-external-newwindow: true</span></span>
-<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a><span class="co">    theme:</span></span>
-<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="co">        light: cosmo</span></span>
-<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a><span class="co">        dark: darkly</span></span>
-<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a><span class="co">    fontsize: 1.0em</span></span>
-<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a><span class="co">    linestretch: 1.5</span></span>
-<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="co">  error: false</span></span>
-<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a><span class="an">editor_options:</span><span class="co"> </span></span>
-<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a><span class="co">  chunk_output_type: console</span></span>
-<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="fu"># Ładowanie bibliotek</span></span>
-<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;tidymodels&quot;</span>)</span>
-<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;AmesHousing&quot;</span>)</span>
-<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;skimr&quot;</span>)</span>
-<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;GGally&quot;</span>)</span>
-<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;vip&quot;</span>)</span>
-<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;patchwork&quot;</span>)</span>
-<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;tibble&quot;</span>)</span>
-<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a><span class="fu">tidymodels_prefer</span>()</span>
-<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">222</span>)</span>
-<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a><span class="fu"># Wczytanie i opis danych</span></span>
-<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-58"><a href="#cb26-58" aria-hidden="true" tabindex="-1"></a>Dane Wine Quality (UCI) dostępne są jako dwa pliki: <span class="in">`winequality-red.csv`</span> i <span class="in">`winequality-white.csv`</span></span>
-<span id="cb26-59"><a href="#cb26-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-60"><a href="#cb26-60" aria-hidden="true" tabindex="-1"></a>Każdy rekord odpowiada jednemu winu i opisany jest zestawem cech numerycznych.</span>
-<span id="cb26-61"><a href="#cb26-61" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-62"><a href="#cb26-62" aria-hidden="true" tabindex="-1"></a>| Nazwa zmiennej | Opis | Jednostka / Zakres | Typ danych |</span>
-<span id="cb26-63"><a href="#cb26-63" aria-hidden="true" tabindex="-1"></a>|----------------|------|--------------------|-------------|</span>
-<span id="cb26-64"><a href="#cb26-64" aria-hidden="true" tabindex="-1"></a>| **fixed acidity** | Zawartość kwasów stałych (głównie kwas winowy) | g/dm³ | numeryczna |</span>
-<span id="cb26-65"><a href="#cb26-65" aria-hidden="true" tabindex="-1"></a>| **volatile acidity** | Kwasowość lotna (głównie kwas octowy); zbyt wysoka powoduje nieprzyjemny zapach | g/dm³ | numeryczna |</span>
-<span id="cb26-66"><a href="#cb26-66" aria-hidden="true" tabindex="-1"></a>| **citric acid** | Zawartość kwasu cytrynowego – wpływa na świeżość i smak | g/dm³ | numeryczna |</span>
-<span id="cb26-67"><a href="#cb26-67" aria-hidden="true" tabindex="-1"></a>| **residual sugar** | Cukier resztkowy po fermentacji | g/dm³ | numeryczna |</span>
-<span id="cb26-68"><a href="#cb26-68" aria-hidden="true" tabindex="-1"></a>| **chlorides** | Ilość chlorków (zawartość soli) | g/dm³ | numeryczna |</span>
-<span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a>| **free sulfur dioxide** | Wolny dwutlenek siarki – środek konserwujący | mg/dm³ | numeryczna |</span>
-<span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a>| **total sulfur dioxide** | Całkowity dwutlenek siarki (wolny + związany) | mg/dm³ | numeryczna |</span>
-<span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a>| **density** | Gęstość wina – zależy od zawartości cukru i alkoholu | g/cm³ | numeryczna |</span>
-<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>| **pH** | Odczyn kwasowości – niższe wartości oznaczają bardziej kwaśne wino | 0–14 | numeryczna |</span>
-<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a>| **sulphates** | Zawartość siarczanów – wpływa na stabilność i smak | g/dm³ | numeryczna |</span>
-<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>| **alcohol** | Zawartość alkoholu etylowego | % obj. | numeryczna |</span>
-<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a>| **quality** | Ocena jakości wina przez ekspertów | skala 0–10 (zazwyczaj 3–8) | numeryczna / kategoryczna |</span>
-<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>| **type** | Typ wina – czerwone lub białe | <span class="in">`red`</span> / <span class="in">`white`</span> | kategoryczna |</span>
-<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a>Dane te pozwalają analizować, które cechy chemiczne najbardziej wpływają na ocenę jakości wina (<span class="in">`quality`</span>).</span>
-<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
-<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file(&quot;https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv&quot;, destfile = &quot;winequality-red.csv&quot;)</span></span>
-<span id="cb26-89"><a href="#cb26-89" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file(&quot;https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv&quot;, destfile = &quot;winequality-white.csv&quot;)</span></span>
-<span id="cb26-90"><a href="#cb26-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-91"><a href="#cb26-91" aria-hidden="true" tabindex="-1"></a><span class="co"># separator = &quot;;&quot;</span></span>
-<span id="cb26-92"><a href="#cb26-92" aria-hidden="true" tabindex="-1"></a>red  <span class="ot">&lt;-</span> <span class="fu">read_delim</span>(<span class="st">&quot;winequality-red.csv&quot;</span>, <span class="at">delim =</span> <span class="st">&quot;;&quot;</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb26-93"><a href="#cb26-93" aria-hidden="true" tabindex="-1"></a>white <span class="ot">&lt;-</span> <span class="fu">read_delim</span>(<span class="st">&quot;winequality-white.csv&quot;</span>, <span class="at">delim =</span> <span class="st">&quot;;&quot;</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb26-94"><a href="#cb26-94" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-95"><a href="#cb26-95" aria-hidden="true" tabindex="-1"></a>red  <span class="ot">&lt;-</span> red <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">type =</span> <span class="st">&quot;red&quot;</span>)</span>
-<span id="cb26-96"><a href="#cb26-96" aria-hidden="true" tabindex="-1"></a>white <span class="ot">&lt;-</span> white <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">type =</span> <span class="st">&quot;white&quot;</span>)</span>
-<span id="cb26-97"><a href="#cb26-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-98"><a href="#cb26-98" aria-hidden="true" tabindex="-1"></a>wine_raw <span class="ot">&lt;-</span> red</span>
-<span id="cb26-99"><a href="#cb26-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-100"><a href="#cb26-100" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(wine_raw)</span>
-<span id="cb26-101"><a href="#cb26-101" aria-hidden="true" tabindex="-1"></a>skimr<span class="sc">::</span><span class="fu">skim</span>(wine_raw)</span>
-<span id="cb26-102"><a href="#cb26-102" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-103"><a href="#cb26-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-104"><a href="#cb26-104" aria-hidden="true" tabindex="-1"></a><span class="fu"># Cel</span></span>
-<span id="cb26-105"><a href="#cb26-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-106"><a href="#cb26-106" aria-hidden="true" tabindex="-1"></a>Celem analizy jest zrozumienie, które cechy chemiczne wpływają na ocenę jakości wina. Zmienna celu to <span class="in">`quality`</span> — ocena sensoryczna w skali całkowitej. Możemy traktować ją jako regresję (ciągła przybliżona) lub jako problem klasyfikacji/porządkowy.</span>
-<span id="cb26-107"><a href="#cb26-107" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-110"><a href="#cb26-110" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-111"><a href="#cb26-111" aria-hidden="true" tabindex="-1"></a>wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(quality) <span class="sc">|&gt;</span> skimr<span class="sc">::</span><span class="fu">skim</span>()</span>
-<span id="cb26-112"><a href="#cb26-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-113"><a href="#cb26-113" aria-hidden="true" tabindex="-1"></a><span class="co"># rozkład jakości</span></span>
-<span id="cb26-114"><a href="#cb26-114" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb26-115"><a href="#cb26-115" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(quality)) <span class="sc">+</span> <span class="fu">geom_bar</span>() <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;Rozkład jakości (quality)&quot;</span>)</span>
-<span id="cb26-116"><a href="#cb26-116" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-117"><a href="#cb26-117" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-118"><a href="#cb26-118" aria-hidden="true" tabindex="-1"></a><span class="fu"># Wstępna eksploracja</span></span>
-<span id="cb26-119"><a href="#cb26-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-120"><a href="#cb26-120" aria-hidden="true" tabindex="-1"></a>Szybkie wykresy i korelacje z <span class="in">`quality`</span>.</span>
-<span id="cb26-121"><a href="#cb26-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-124"><a href="#cb26-124" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-125"><a href="#cb26-125" aria-hidden="true" tabindex="-1"></a>num_vars <span class="ot">&lt;-</span> wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">where</span>(is.numeric)) <span class="sc">|&gt;</span> <span class="fu">names</span>()</span>
-<span id="cb26-126"><a href="#cb26-126" aria-hidden="true" tabindex="-1"></a>sel <span class="ot">&lt;-</span> <span class="fu">c</span>(num_vars[<span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>], <span class="st">&quot;quality&quot;</span>)</span>
-<span id="cb26-127"><a href="#cb26-127" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-128"><a href="#cb26-128" aria-hidden="true" tabindex="-1"></a>GGally<span class="sc">::</span><span class="fu">ggpairs</span>(wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">all_of</span>(sel)) <span class="sc">|&gt;</span> <span class="fu">na.omit</span>(), <span class="at">lower =</span> <span class="fu">list</span>(<span class="at">continuous =</span> <span class="st">&quot;smooth&quot;</span>))</span>
-<span id="cb26-129"><a href="#cb26-129" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-130"><a href="#cb26-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-133"><a href="#cb26-133" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-134"><a href="#cb26-134" aria-hidden="true" tabindex="-1"></a>cors <span class="ot">&lt;-</span> wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">where</span>(is.numeric)) <span class="sc">|&gt;</span> <span class="fu">cor</span>(<span class="at">use =</span> <span class="st">&quot;pairwise.complete.obs&quot;</span>)</span>
-<span id="cb26-135"><a href="#cb26-135" aria-hidden="true" tabindex="-1"></a>q_cor <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb26-136"><a href="#cb26-136" aria-hidden="true" tabindex="-1"></a>  <span class="at">feature =</span> <span class="fu">rownames</span>(cors),</span>
-<span id="cb26-137"><a href="#cb26-137" aria-hidden="true" tabindex="-1"></a>  <span class="at">correlation =</span> cors[, <span class="st">&quot;quality&quot;</span>]</span>
-<span id="cb26-138"><a href="#cb26-138" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-139"><a href="#cb26-139" aria-hidden="true" tabindex="-1"></a>q_cor <span class="sc">|&gt;</span> <span class="fu">arrange</span>(<span class="fu">desc</span>(<span class="fu">abs</span>(correlation))) <span class="sc">|&gt;</span> <span class="fu">slice</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>)</span>
-<span id="cb26-140"><a href="#cb26-140" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-141"><a href="#cb26-141" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-142"><a href="#cb26-142" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`alcohol`** ma **najsilniejszą dodatnią korelację** z jakością wina – im wyższa zawartość alkoholu, tym wino jest zwykle lepiej oceniane.  </span>
-<span id="cb26-143"><a href="#cb26-143" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`volatile acidity`** wykazuje **umiarkowaną ujemną korelację** – większa kwasowość lotna (np. kwas octowy) obniża ocenę wina.</span>
-<span id="cb26-144"><a href="#cb26-144" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`pH`** jest praktycznie niepowiązane z oceną jakości.  </span>
-<span id="cb26-145"><a href="#cb26-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-148"><a href="#cb26-148" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-149"><a href="#cb26-149" aria-hidden="true" tabindex="-1"></a>p1 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(alcohol)) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;Alcohol&quot;</span>)</span>
-<span id="cb26-150"><a href="#cb26-150" aria-hidden="true" tabindex="-1"></a>p2 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(.data[[<span class="st">&#39;volatile acidity&#39;</span>]])) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;volatile acidity&quot;</span>)</span>
-<span id="cb26-151"><a href="#cb26-151" aria-hidden="true" tabindex="-1"></a>p3 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(pH)) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;pH&quot;</span>)</span>
-<span id="cb26-152"><a href="#cb26-152" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-153"><a href="#cb26-153" aria-hidden="true" tabindex="-1"></a>p1 <span class="sc">+</span> p2 <span class="sc">+</span> p3</span>
-<span id="cb26-154"><a href="#cb26-154" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-155"><a href="#cb26-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-156"><a href="#cb26-156" aria-hidden="true" tabindex="-1"></a><span class="fu"># Podział na zbiór treningowy i testowy</span></span>
-<span id="cb26-157"><a href="#cb26-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-158"><a href="#cb26-158" aria-hidden="true" tabindex="-1"></a>Dane zostały podzielone w proporcji **80% / 20%** na zbiór treningowy i testowy z użyciem stratyfikacji względem zmiennej <span class="in">`quality`</span>. Dzięki temu rozkład jakości pozostaje podobny w obu zbiorach, co zwiększa wiarygodność oceny modelu.</span>
-<span id="cb26-159"><a href="#cb26-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-160"><a href="#cb26-160" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-163"><a href="#cb26-163" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-164"><a href="#cb26-164" aria-hidden="true" tabindex="-1"></a>split <span class="ot">&lt;-</span> <span class="fu">initial_split</span>(wine_raw, <span class="at">prop =</span> <span class="fl">0.8</span>, <span class="at">strata =</span> quality)</span>
-<span id="cb26-165"><a href="#cb26-165" aria-hidden="true" tabindex="-1"></a>train_tbl <span class="ot">&lt;-</span> <span class="fu">training</span>(split)</span>
-<span id="cb26-166"><a href="#cb26-166" aria-hidden="true" tabindex="-1"></a>test_tbl  <span class="ot">&lt;-</span> <span class="fu">testing</span>(split)</span>
-<span id="cb26-167"><a href="#cb26-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-168"><a href="#cb26-168" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(train_tbl)</span>
-<span id="cb26-169"><a href="#cb26-169" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(test_tbl)</span>
-<span id="cb26-170"><a href="#cb26-170" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-171"><a href="#cb26-171" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-172"><a href="#cb26-172" aria-hidden="true" tabindex="-1"></a><span class="fu"># Receptura</span></span>
-<span id="cb26-173"><a href="#cb26-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-174"><a href="#cb26-174" aria-hidden="true" tabindex="-1"></a>Plan receptury:</span>
-<span id="cb26-175"><a href="#cb26-175" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-176"><a href="#cb26-176" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>usunięcie braków</span>
-<span id="cb26-177"><a href="#cb26-177" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-178"><a href="#cb26-178" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>usunięcie cech z niemal zerową wariancją</span>
-<span id="cb26-179"><a href="#cb26-179" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-180"><a href="#cb26-180" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>normalizacja wszystkich predyktorów numerycznych</span>
-<span id="cb26-181"><a href="#cb26-181" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-182"><a href="#cb26-182" aria-hidden="true" tabindex="-1"></a><span class="in">```{r recipe}</span></span>
-<span id="cb26-183"><a href="#cb26-183" aria-hidden="true" tabindex="-1"></a><span class="in">library(recipes)</span></span>
-<span id="cb26-184"><a href="#cb26-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-185"><a href="#cb26-185" aria-hidden="true" tabindex="-1"></a><span class="in">wine_recipe &lt;- recipe(quality ~ ., data = train_tbl) |&gt;</span></span>
-<span id="cb26-186"><a href="#cb26-186" aria-hidden="true" tabindex="-1"></a><span class="in">  # jeśli łączysz oba zbiory, type jest nominalne — w przeciwnym razie ten krok nic nie robi</span></span>
-<span id="cb26-187"><a href="#cb26-187" aria-hidden="true" tabindex="-1"></a><span class="in">  step_impute_median(all_numeric_predictors()) |&gt;</span></span>
-<span id="cb26-188"><a href="#cb26-188" aria-hidden="true" tabindex="-1"></a><span class="in">  step_nzv(all_predictors()) |&gt;</span></span>
-<span id="cb26-189"><a href="#cb26-189" aria-hidden="true" tabindex="-1"></a><span class="in">  step_normalize(all_numeric_predictors())</span></span>
-<span id="cb26-190"><a href="#cb26-190" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-191"><a href="#cb26-191" aria-hidden="true" tabindex="-1"></a><span class="in">summary(wine_recipe)</span></span>
-<span id="cb26-192"><a href="#cb26-192" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-193"><a href="#cb26-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-194"><a href="#cb26-194" aria-hidden="true" tabindex="-1"></a><span class="fu"># Specyfikacje modeli</span></span>
-<span id="cb26-195"><a href="#cb26-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-196"><a href="#cb26-196" aria-hidden="true" tabindex="-1"></a>W tej części definiujemy cztery różne podejścia do regresji jakości wina.</span>
-<span id="cb26-197"><a href="#cb26-197" aria-hidden="true" tabindex="-1"></a>Każdy model wykorzystuje inne założenia i metody regularyzacji lub uogólnienia.</span>
-<span id="cb26-198"><a href="#cb26-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-199"><a href="#cb26-199" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Regresja liniowa (OLS) – prosta baza porównawcza.</span>
-<span id="cb26-200"><a href="#cb26-200" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-201"><a href="#cb26-201" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>GLMNet – regresja liniowa z regularyzacją L1/L2 (ridge / lasso).</span>
-<span id="cb26-202"><a href="#cb26-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-203"><a href="#cb26-203" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Random Forest (ranger) – model drzew losowych, dobrze radzi sobie z nieliniowościami.</span>
-<span id="cb26-204"><a href="#cb26-204" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-205"><a href="#cb26-205" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>XGBoost – wydajny model boostingowy, bardzo skuteczny.</span>
-<span id="cb26-206"><a href="#cb26-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-207"><a href="#cb26-207" aria-hidden="true" tabindex="-1"></a><span class="in">```{r models-setup}</span></span>
-<span id="cb26-208"><a href="#cb26-208" aria-hidden="true" tabindex="-1"></a><span class="in"># 1. Linear regression (OLS)</span></span>
-<span id="cb26-209"><a href="#cb26-209" aria-hidden="true" tabindex="-1"></a><span class="in">lm_spec &lt;- linear_reg() |&gt;</span></span>
-<span id="cb26-210"><a href="#cb26-210" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;lm&quot;, importance = &quot;impurity&quot;) |&gt;</span></span>
-<span id="cb26-211"><a href="#cb26-211" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
-<span id="cb26-212"><a href="#cb26-212" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-213"><a href="#cb26-213" aria-hidden="true" tabindex="-1"></a><span class="in"># 2. Regularized (glmnet)</span></span>
-<span id="cb26-214"><a href="#cb26-214" aria-hidden="true" tabindex="-1"></a><span class="in">glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;</span></span>
-<span id="cb26-215"><a href="#cb26-215" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;glmnet&quot;, importance = &quot;impurity&quot;)</span></span>
-<span id="cb26-216"><a href="#cb26-216" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-217"><a href="#cb26-217" aria-hidden="true" tabindex="-1"></a><span class="in"># 3. Random forest (ranger)</span></span>
-<span id="cb26-218"><a href="#cb26-218" aria-hidden="true" tabindex="-1"></a><span class="in">rf_spec &lt;- rand_forest(mtry = tune(), trees = 1000, min_n = tune()) |&gt;</span></span>
-<span id="cb26-219"><a href="#cb26-219" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;ranger&quot;, importance = &quot;impurity&quot;) |&gt;</span></span>
-<span id="cb26-220"><a href="#cb26-220" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
-<span id="cb26-221"><a href="#cb26-221" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-222"><a href="#cb26-222" aria-hidden="true" tabindex="-1"></a><span class="in"># 4. Gradient boosting (xgboost)</span></span>
-<span id="cb26-223"><a href="#cb26-223" aria-hidden="true" tabindex="-1"></a><span class="in">xgb_spec &lt;- boost_tree(trees = tune(), tree_depth = tune(), learn_rate = tune(), loss_reduction = tune(), sample_size = tune()) |&gt;</span></span>
-<span id="cb26-224"><a href="#cb26-224" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;xgboost&quot;) |&gt;</span></span>
-<span id="cb26-225"><a href="#cb26-225" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
-<span id="cb26-226"><a href="#cb26-226" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-227"><a href="#cb26-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-228"><a href="#cb26-228" aria-hidden="true" tabindex="-1"></a><span class="fu"># Workflow</span></span>
-<span id="cb26-229"><a href="#cb26-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-230"><a href="#cb26-230" aria-hidden="true" tabindex="-1"></a>Workflow on wcześniej zdefiniowaną recepturę (<span class="in">`wine_recipe`</span>) z wybranym modelem uczenia maszynowego, dzięki czemu cały proces przygotowania danych i trenowania odbywa się w jednej strukturze.</span>
-<span id="cb26-231"><a href="#cb26-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-234"><a href="#cb26-234" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-235"><a href="#cb26-235" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(workflows)</span>
-<span id="cb26-236"><a href="#cb26-236" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-237"><a href="#cb26-237" aria-hidden="true" tabindex="-1"></a>wf_lm <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(lm_spec)</span>
-<span id="cb26-238"><a href="#cb26-238" aria-hidden="true" tabindex="-1"></a>wf_glmnet <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(glmnet_spec)</span>
-<span id="cb26-239"><a href="#cb26-239" aria-hidden="true" tabindex="-1"></a>wf_rf <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(rf_spec)</span>
-<span id="cb26-240"><a href="#cb26-240" aria-hidden="true" tabindex="-1"></a>wf_xgb <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(xgb_spec)</span>
-<span id="cb26-241"><a href="#cb26-241" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-242"><a href="#cb26-242" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-243"><a href="#cb26-243" aria-hidden="true" tabindex="-1"></a><span class="fu"># Walidacja krzyżowa i plan strojenia</span></span>
-<span id="cb26-244"><a href="#cb26-244" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-245"><a href="#cb26-245" aria-hidden="true" tabindex="-1"></a>Tworzony jest plan walidacji krzyżowej (5-fold CV), który pozwala ocenić modele na różnych podzbiorach danych.</span>
-<span id="cb26-246"><a href="#cb26-246" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-247"><a href="#cb26-247" aria-hidden="true" tabindex="-1"></a>Dodatkowo określane są zakresy hiperparametrów i siatki (grid) dla każdego modelu, które zostaną użyte w procesie strojenia.</span>
-<span id="cb26-248"><a href="#cb26-248" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-251"><a href="#cb26-251" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-252"><a href="#cb26-252" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dials)</span>
-<span id="cb26-253"><a href="#cb26-253" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(rsample)</span>
-<span id="cb26-254"><a href="#cb26-254" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-255"><a href="#cb26-255" aria-hidden="true" tabindex="-1"></a>cv_splits <span class="ot">&lt;-</span> <span class="fu">vfold_cv</span>(train_tbl, <span class="at">v =</span> <span class="dv">5</span>, <span class="at">strata =</span> quality)</span>
-<span id="cb26-256"><a href="#cb26-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-257"><a href="#cb26-257" aria-hidden="true" tabindex="-1"></a>glmnet_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(<span class="fu">penalty</span>(), <span class="fu">mixture</span>())</span>
-<span id="cb26-258"><a href="#cb26-258" aria-hidden="true" tabindex="-1"></a>rf_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(</span>
-<span id="cb26-259"><a href="#cb26-259" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mtry</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="fu">floor</span>(<span class="fu">sqrt</span>(<span class="fu">ncol</span>(train_tbl)<span class="sc">-</span><span class="dv">1</span>)))), </span>
-<span id="cb26-260"><a href="#cb26-260" aria-hidden="true" tabindex="-1"></a>  <span class="fu">min_n</span>()</span>
-<span id="cb26-261"><a href="#cb26-261" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-262"><a href="#cb26-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-263"><a href="#cb26-263" aria-hidden="true" tabindex="-1"></a>xgb_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(</span>
-<span id="cb26-264"><a href="#cb26-264" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tree_depth</span>(), </span>
-<span id="cb26-265"><a href="#cb26-265" aria-hidden="true" tabindex="-1"></a>  <span class="fu">trees</span>(), </span>
-<span id="cb26-266"><a href="#cb26-266" aria-hidden="true" tabindex="-1"></a>  <span class="fu">learn_rate</span>(), </span>
-<span id="cb26-267"><a href="#cb26-267" aria-hidden="true" tabindex="-1"></a>  <span class="fu">loss_reduction</span>(), </span>
-<span id="cb26-268"><a href="#cb26-268" aria-hidden="true" tabindex="-1"></a>  <span class="at">sample_size =</span> <span class="fu">sample_prop</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="fl">1.0</span>))</span>
-<span id="cb26-269"><a href="#cb26-269" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-270"><a href="#cb26-270" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-271"><a href="#cb26-271" aria-hidden="true" tabindex="-1"></a>xgb_params_final <span class="ot">&lt;-</span> <span class="fu">finalize</span>(xgb_params, train_tbl)</span>
-<span id="cb26-272"><a href="#cb26-272" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-273"><a href="#cb26-273" aria-hidden="true" tabindex="-1"></a><span class="co"># Create grids</span></span>
-<span id="cb26-274"><a href="#cb26-274" aria-hidden="true" tabindex="-1"></a>glmnet_grid <span class="ot">&lt;-</span> <span class="fu">grid_regular</span>(glmnet_params, <span class="at">levels =</span> <span class="dv">5</span>)</span>
-<span id="cb26-275"><a href="#cb26-275" aria-hidden="true" tabindex="-1"></a>rf_grid <span class="ot">&lt;-</span> <span class="fu">grid_random</span>(rf_params, <span class="at">size =</span> <span class="dv">20</span>)</span>
-<span id="cb26-276"><a href="#cb26-276" aria-hidden="true" tabindex="-1"></a>xgb_grid <span class="ot">&lt;-</span> <span class="fu">grid_random</span>(xgb_params_final, <span class="at">size =</span> <span class="dv">20</span>)</span>
-<span id="cb26-277"><a href="#cb26-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-278"><a href="#cb26-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-279"><a href="#cb26-279" aria-hidden="true" tabindex="-1"></a><span class="fu"># Strojenie modeli (tuning)</span></span>
-<span id="cb26-280"><a href="#cb26-280" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-281"><a href="#cb26-281" aria-hidden="true" tabindex="-1"></a>Tutaj każdy model jest strojeny (tuningowany) przy użyciu wcześniej zdefiniowanej walidacji i siatek parametrów.</span>
-<span id="cb26-282"><a href="#cb26-282" aria-hidden="true" tabindex="-1"></a>Wyniki oceniamy na podstawie trzech metryk: RMSE, R² i MAE.</span>
-<span id="cb26-283"><a href="#cb26-283" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-286"><a href="#cb26-286" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb26-287"><a href="#cb26-287" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tune)</span>
-<span id="cb26-288"><a href="#cb26-288" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(glmnet)</span>
-<span id="cb26-289"><a href="#cb26-289" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(xgboost)</span>
-<span id="cb26-290"><a href="#cb26-290" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ranger)</span>
-<span id="cb26-291"><a href="#cb26-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-292"><a href="#cb26-292" aria-hidden="true" tabindex="-1"></a>reg_metrics <span class="ot">&lt;-</span> <span class="fu">metric_set</span>(rmse, rsq, mae)</span>
-<span id="cb26-293"><a href="#cb26-293" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-294"><a href="#cb26-294" aria-hidden="true" tabindex="-1"></a><span class="co"># GLMnet</span></span>
-<span id="cb26-295"><a href="#cb26-295" aria-hidden="true" tabindex="-1"></a>glmnet_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
-<span id="cb26-296"><a href="#cb26-296" aria-hidden="true" tabindex="-1"></a>  wf_glmnet, </span>
-<span id="cb26-297"><a href="#cb26-297" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
-<span id="cb26-298"><a href="#cb26-298" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> glmnet_grid, </span>
-<span id="cb26-299"><a href="#cb26-299" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
-<span id="cb26-300"><a href="#cb26-300" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">save_pred =</span> <span class="cn">FALSE</span>, <span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb26-301"><a href="#cb26-301" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-302"><a href="#cb26-302" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-303"><a href="#cb26-303" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(glmnet_res)</span>
-<span id="cb26-304"><a href="#cb26-304" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-305"><a href="#cb26-305" aria-hidden="true" tabindex="-1"></a><span class="co"># Random Forest</span></span>
-<span id="cb26-306"><a href="#cb26-306" aria-hidden="true" tabindex="-1"></a>rf_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
-<span id="cb26-307"><a href="#cb26-307" aria-hidden="true" tabindex="-1"></a>  wf_rf, </span>
-<span id="cb26-308"><a href="#cb26-308" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
-<span id="cb26-309"><a href="#cb26-309" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> rf_grid, </span>
-<span id="cb26-310"><a href="#cb26-310" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
-<span id="cb26-311"><a href="#cb26-311" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb26-312"><a href="#cb26-312" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-313"><a href="#cb26-313" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(rf_res)</span>
-<span id="cb26-314"><a href="#cb26-314" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-315"><a href="#cb26-315" aria-hidden="true" tabindex="-1"></a><span class="co"># XGBoost</span></span>
-<span id="cb26-316"><a href="#cb26-316" aria-hidden="true" tabindex="-1"></a>xgb_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
-<span id="cb26-317"><a href="#cb26-317" aria-hidden="true" tabindex="-1"></a>  wf_xgb, </span>
-<span id="cb26-318"><a href="#cb26-318" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
-<span id="cb26-319"><a href="#cb26-319" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> xgb_grid, </span>
-<span id="cb26-320"><a href="#cb26-320" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
-<span id="cb26-321"><a href="#cb26-321" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb26-322"><a href="#cb26-322" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-323"><a href="#cb26-323" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(xgb_res)</span>
-<span id="cb26-324"><a href="#cb26-324" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb26-325"><a href="#cb26-325" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-326"><a href="#cb26-326" aria-hidden="true" tabindex="-1"></a></span>
+<div class="sourceCode" id="cb29" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> &quot;ml_test - Wine Quality&quot;</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> &quot;Iwo&quot;</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span><span class="co"> </span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co">    self-contained: true</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 4</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-location: right</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-title: &quot;Spis treści&quot;</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co">    number-sections: true</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="co">    number-depth: 4</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a><span class="co">    number-offset: 0</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: show</span></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="co">    code-summary: &quot;Show the code&quot;</span></span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a><span class="co">    code-block-bg: true</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a><span class="co">    code-block-border-left: &quot;black&quot;</span></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-line-numbers: false</span></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-copy: true</span></span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a><span class="co">    html-math-method: katex</span></span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a><span class="co">    smooth-scroll: true</span></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a><span class="co">    anchor-sections: true</span></span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a><span class="co">    link-external-icon: true</span></span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a><span class="co">    link-external-newwindow: true</span></span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a><span class="co">    theme:</span></span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a><span class="co">        light: cosmo</span></span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a><span class="co">        dark: darkly</span></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a><span class="co">    fontsize: 1.0em</span></span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a><span class="co">    linestretch: 1.5</span></span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a><span class="co">  error: false</span></span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a><span class="an">editor_options:</span><span class="co"> </span></span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a><span class="co">  chunk_output_type: console</span></span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a><span class="fu"># Ładowanie bibliotek</span></span>
+<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-43"><a href="#cb29-43" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-44"><a href="#cb29-44" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;tidymodels&quot;</span>)</span>
+<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;AmesHousing&quot;</span>)</span>
+<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;skimr&quot;</span>)</span>
+<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;GGally&quot;</span>)</span>
+<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;vip&quot;</span>)</span>
+<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;patchwork&quot;</span>)</span>
+<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;tibble&quot;</span>)</span>
+<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a><span class="fu">tidymodels_prefer</span>()</span>
+<span id="cb29-52"><a href="#cb29-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-53"><a href="#cb29-53" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">222</span>)</span>
+<span id="cb29-54"><a href="#cb29-54" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-55"><a href="#cb29-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-56"><a href="#cb29-56" aria-hidden="true" tabindex="-1"></a><span class="fu"># Wczytanie i opis danych</span></span>
+<span id="cb29-57"><a href="#cb29-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-58"><a href="#cb29-58" aria-hidden="true" tabindex="-1"></a>Dane Wine Quality (UCI) dostępne są jako dwa pliki: <span class="in">`winequality-red.csv`</span> i <span class="in">`winequality-white.csv`</span></span>
+<span id="cb29-59"><a href="#cb29-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-60"><a href="#cb29-60" aria-hidden="true" tabindex="-1"></a>Każdy rekord odpowiada jednemu winu i opisany jest zestawem cech numerycznych.</span>
+<span id="cb29-61"><a href="#cb29-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-62"><a href="#cb29-62" aria-hidden="true" tabindex="-1"></a>| Nazwa zmiennej | Opis | Jednostka / Zakres | Typ danych |</span>
+<span id="cb29-63"><a href="#cb29-63" aria-hidden="true" tabindex="-1"></a>|----------------|------|--------------------|-------------|</span>
+<span id="cb29-64"><a href="#cb29-64" aria-hidden="true" tabindex="-1"></a>| **fixed acidity** | Zawartość kwasów stałych (głównie kwas winowy) | g/dm³ | numeryczna |</span>
+<span id="cb29-65"><a href="#cb29-65" aria-hidden="true" tabindex="-1"></a>| **volatile acidity** | Kwasowość lotna (głównie kwas octowy); zbyt wysoka powoduje nieprzyjemny zapach | g/dm³ | numeryczna |</span>
+<span id="cb29-66"><a href="#cb29-66" aria-hidden="true" tabindex="-1"></a>| **citric acid** | Zawartość kwasu cytrynowego – wpływa na świeżość i smak | g/dm³ | numeryczna |</span>
+<span id="cb29-67"><a href="#cb29-67" aria-hidden="true" tabindex="-1"></a>| **residual sugar** | Cukier resztkowy po fermentacji | g/dm³ | numeryczna |</span>
+<span id="cb29-68"><a href="#cb29-68" aria-hidden="true" tabindex="-1"></a>| **chlorides** | Ilość chlorków (zawartość soli) | g/dm³ | numeryczna |</span>
+<span id="cb29-69"><a href="#cb29-69" aria-hidden="true" tabindex="-1"></a>| **free sulfur dioxide** | Wolny dwutlenek siarki – środek konserwujący | mg/dm³ | numeryczna |</span>
+<span id="cb29-70"><a href="#cb29-70" aria-hidden="true" tabindex="-1"></a>| **total sulfur dioxide** | Całkowity dwutlenek siarki (wolny + związany) | mg/dm³ | numeryczna |</span>
+<span id="cb29-71"><a href="#cb29-71" aria-hidden="true" tabindex="-1"></a>| **density** | Gęstość wina – zależy od zawartości cukru i alkoholu | g/cm³ | numeryczna |</span>
+<span id="cb29-72"><a href="#cb29-72" aria-hidden="true" tabindex="-1"></a>| **pH** | Odczyn kwasowości – niższe wartości oznaczają bardziej kwaśne wino | 0–14 | numeryczna |</span>
+<span id="cb29-73"><a href="#cb29-73" aria-hidden="true" tabindex="-1"></a>| **sulphates** | Zawartość siarczanów – wpływa na stabilność i smak | g/dm³ | numeryczna |</span>
+<span id="cb29-74"><a href="#cb29-74" aria-hidden="true" tabindex="-1"></a>| **alcohol** | Zawartość alkoholu etylowego | % obj. | numeryczna |</span>
+<span id="cb29-75"><a href="#cb29-75" aria-hidden="true" tabindex="-1"></a>| **quality** | Ocena jakości wina przez ekspertów | skala 0–10 (zazwyczaj 3–8) | numeryczna / kategoryczna |</span>
+<span id="cb29-76"><a href="#cb29-76" aria-hidden="true" tabindex="-1"></a>| **type** | Typ wina – czerwone lub białe | <span class="in">`red`</span> / <span class="in">`white`</span> | kategoryczna |</span>
+<span id="cb29-77"><a href="#cb29-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-78"><a href="#cb29-78" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb29-79"><a href="#cb29-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-80"><a href="#cb29-80" aria-hidden="true" tabindex="-1"></a>Dane te pozwalają analizować, które cechy chemiczne najbardziej wpływają na ocenę jakości wina (<span class="in">`quality`</span>).</span>
+<span id="cb29-81"><a href="#cb29-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-82"><a href="#cb29-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-85"><a href="#cb29-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-86"><a href="#cb29-86" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
+<span id="cb29-87"><a href="#cb29-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-88"><a href="#cb29-88" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file(&quot;https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv&quot;, destfile = &quot;winequality-red.csv&quot;)</span></span>
+<span id="cb29-89"><a href="#cb29-89" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file(&quot;https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv&quot;, destfile = &quot;winequality-white.csv&quot;)</span></span>
+<span id="cb29-90"><a href="#cb29-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-91"><a href="#cb29-91" aria-hidden="true" tabindex="-1"></a><span class="co"># separator = &quot;;&quot;</span></span>
+<span id="cb29-92"><a href="#cb29-92" aria-hidden="true" tabindex="-1"></a>red  <span class="ot">&lt;-</span> <span class="fu">read_delim</span>(<span class="st">&quot;winequality-red.csv&quot;</span>, <span class="at">delim =</span> <span class="st">&quot;;&quot;</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb29-93"><a href="#cb29-93" aria-hidden="true" tabindex="-1"></a>white <span class="ot">&lt;-</span> <span class="fu">read_delim</span>(<span class="st">&quot;winequality-white.csv&quot;</span>, <span class="at">delim =</span> <span class="st">&quot;;&quot;</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb29-94"><a href="#cb29-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-95"><a href="#cb29-95" aria-hidden="true" tabindex="-1"></a>red  <span class="ot">&lt;-</span> red <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">type =</span> <span class="st">&quot;red&quot;</span>)</span>
+<span id="cb29-96"><a href="#cb29-96" aria-hidden="true" tabindex="-1"></a>white <span class="ot">&lt;-</span> white <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">type =</span> <span class="st">&quot;white&quot;</span>)</span>
+<span id="cb29-97"><a href="#cb29-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-98"><a href="#cb29-98" aria-hidden="true" tabindex="-1"></a>wine_raw <span class="ot">&lt;-</span> red</span>
+<span id="cb29-99"><a href="#cb29-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-100"><a href="#cb29-100" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(wine_raw)</span>
+<span id="cb29-101"><a href="#cb29-101" aria-hidden="true" tabindex="-1"></a>skimr<span class="sc">::</span><span class="fu">skim</span>(wine_raw)</span>
+<span id="cb29-102"><a href="#cb29-102" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-103"><a href="#cb29-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-104"><a href="#cb29-104" aria-hidden="true" tabindex="-1"></a><span class="fu"># Cel</span></span>
+<span id="cb29-105"><a href="#cb29-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-106"><a href="#cb29-106" aria-hidden="true" tabindex="-1"></a>Celem analizy jest zrozumienie, które cechy chemiczne wpływają na ocenę jakości wina. Zmienna celu to <span class="in">`quality`</span> — ocena sensoryczna w skali całkowitej. Możemy traktować ją jako regresję (ciągła przybliżona) lub jako problem klasyfikacji/porządkowy.</span>
+<span id="cb29-107"><a href="#cb29-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-110"><a href="#cb29-110" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-111"><a href="#cb29-111" aria-hidden="true" tabindex="-1"></a>wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(quality) <span class="sc">|&gt;</span> skimr<span class="sc">::</span><span class="fu">skim</span>()</span>
+<span id="cb29-112"><a href="#cb29-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-113"><a href="#cb29-113" aria-hidden="true" tabindex="-1"></a><span class="co"># rozkład jakości</span></span>
+<span id="cb29-114"><a href="#cb29-114" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb29-115"><a href="#cb29-115" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(quality)) <span class="sc">+</span> <span class="fu">geom_bar</span>() <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;Rozkład jakości (quality)&quot;</span>)</span>
+<span id="cb29-116"><a href="#cb29-116" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-117"><a href="#cb29-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-118"><a href="#cb29-118" aria-hidden="true" tabindex="-1"></a><span class="fu"># Wstępna eksploracja</span></span>
+<span id="cb29-119"><a href="#cb29-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-120"><a href="#cb29-120" aria-hidden="true" tabindex="-1"></a>Szybkie wykresy i korelacje z <span class="in">`quality`</span>.</span>
+<span id="cb29-121"><a href="#cb29-121" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-124"><a href="#cb29-124" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-125"><a href="#cb29-125" aria-hidden="true" tabindex="-1"></a>num_vars <span class="ot">&lt;-</span> wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">where</span>(is.numeric)) <span class="sc">|&gt;</span> <span class="fu">names</span>()</span>
+<span id="cb29-126"><a href="#cb29-126" aria-hidden="true" tabindex="-1"></a>sel <span class="ot">&lt;-</span> <span class="fu">c</span>(num_vars[<span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>], <span class="st">&quot;quality&quot;</span>)</span>
+<span id="cb29-127"><a href="#cb29-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-128"><a href="#cb29-128" aria-hidden="true" tabindex="-1"></a>GGally<span class="sc">::</span><span class="fu">ggpairs</span>(wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">all_of</span>(sel)) <span class="sc">|&gt;</span> <span class="fu">na.omit</span>(), <span class="at">lower =</span> <span class="fu">list</span>(<span class="at">continuous =</span> <span class="st">&quot;smooth&quot;</span>))</span>
+<span id="cb29-129"><a href="#cb29-129" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-130"><a href="#cb29-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-133"><a href="#cb29-133" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-134"><a href="#cb29-134" aria-hidden="true" tabindex="-1"></a>cors <span class="ot">&lt;-</span> wine_raw <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="fu">where</span>(is.numeric)) <span class="sc">|&gt;</span> <span class="fu">cor</span>(<span class="at">use =</span> <span class="st">&quot;pairwise.complete.obs&quot;</span>)</span>
+<span id="cb29-135"><a href="#cb29-135" aria-hidden="true" tabindex="-1"></a>q_cor <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb29-136"><a href="#cb29-136" aria-hidden="true" tabindex="-1"></a>  <span class="at">feature =</span> <span class="fu">rownames</span>(cors),</span>
+<span id="cb29-137"><a href="#cb29-137" aria-hidden="true" tabindex="-1"></a>  <span class="at">correlation =</span> cors[, <span class="st">&quot;quality&quot;</span>]</span>
+<span id="cb29-138"><a href="#cb29-138" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-139"><a href="#cb29-139" aria-hidden="true" tabindex="-1"></a>q_cor <span class="sc">|&gt;</span> <span class="fu">arrange</span>(<span class="fu">desc</span>(<span class="fu">abs</span>(correlation))) <span class="sc">|&gt;</span> <span class="fu">slice</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>)</span>
+<span id="cb29-140"><a href="#cb29-140" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-141"><a href="#cb29-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-142"><a href="#cb29-142" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`alcohol`** ma **najsilniejszą dodatnią korelację** z jakością wina – im wyższa zawartość alkoholu, tym wino jest zwykle lepiej oceniane.  </span>
+<span id="cb29-143"><a href="#cb29-143" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`volatile acidity`** wykazuje **umiarkowaną ujemną korelację** – większa kwasowość lotna (np. kwas octowy) obniża ocenę wina.</span>
+<span id="cb29-144"><a href="#cb29-144" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**`pH`** jest praktycznie niepowiązane z oceną jakości.  </span>
+<span id="cb29-145"><a href="#cb29-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-148"><a href="#cb29-148" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-149"><a href="#cb29-149" aria-hidden="true" tabindex="-1"></a>p1 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(alcohol)) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;Alcohol&quot;</span>)</span>
+<span id="cb29-150"><a href="#cb29-150" aria-hidden="true" tabindex="-1"></a>p2 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(.data[[<span class="st">&#39;volatile acidity&#39;</span>]])) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;volatile acidity&quot;</span>)</span>
+<span id="cb29-151"><a href="#cb29-151" aria-hidden="true" tabindex="-1"></a>p3 <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(wine_raw, <span class="fu">aes</span>(pH)) <span class="sc">+</span> <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">30</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">&quot;pH&quot;</span>)</span>
+<span id="cb29-152"><a href="#cb29-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-153"><a href="#cb29-153" aria-hidden="true" tabindex="-1"></a>p1 <span class="sc">+</span> p2 <span class="sc">+</span> p3</span>
+<span id="cb29-154"><a href="#cb29-154" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-155"><a href="#cb29-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-156"><a href="#cb29-156" aria-hidden="true" tabindex="-1"></a><span class="fu"># Podział na zbiór treningowy i testowy</span></span>
+<span id="cb29-157"><a href="#cb29-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-158"><a href="#cb29-158" aria-hidden="true" tabindex="-1"></a>Dane zostały podzielone w proporcji **80% / 20%** na zbiór treningowy i testowy z użyciem stratyfikacji względem zmiennej <span class="in">`quality`</span>. Dzięki temu rozkład jakości pozostaje podobny w obu zbiorach, co zwiększa wiarygodność oceny modelu.</span>
+<span id="cb29-159"><a href="#cb29-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-160"><a href="#cb29-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-163"><a href="#cb29-163" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-164"><a href="#cb29-164" aria-hidden="true" tabindex="-1"></a>split <span class="ot">&lt;-</span> <span class="fu">initial_split</span>(wine_raw, <span class="at">prop =</span> <span class="fl">0.8</span>, <span class="at">strata =</span> quality)</span>
+<span id="cb29-165"><a href="#cb29-165" aria-hidden="true" tabindex="-1"></a>train_tbl <span class="ot">&lt;-</span> <span class="fu">training</span>(split)</span>
+<span id="cb29-166"><a href="#cb29-166" aria-hidden="true" tabindex="-1"></a>test_tbl  <span class="ot">&lt;-</span> <span class="fu">testing</span>(split)</span>
+<span id="cb29-167"><a href="#cb29-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-168"><a href="#cb29-168" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(train_tbl)</span>
+<span id="cb29-169"><a href="#cb29-169" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(test_tbl)</span>
+<span id="cb29-170"><a href="#cb29-170" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-171"><a href="#cb29-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-172"><a href="#cb29-172" aria-hidden="true" tabindex="-1"></a><span class="fu"># Receptura</span></span>
+<span id="cb29-173"><a href="#cb29-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-174"><a href="#cb29-174" aria-hidden="true" tabindex="-1"></a>Plan receptury:</span>
+<span id="cb29-175"><a href="#cb29-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-176"><a href="#cb29-176" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>usunięcie braków</span>
+<span id="cb29-177"><a href="#cb29-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-178"><a href="#cb29-178" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>usunięcie cech z niemal zerową wariancją</span>
+<span id="cb29-179"><a href="#cb29-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-180"><a href="#cb29-180" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>normalizacja wszystkich predyktorów numerycznych</span>
+<span id="cb29-181"><a href="#cb29-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-182"><a href="#cb29-182" aria-hidden="true" tabindex="-1"></a><span class="in">```{r recipe}</span></span>
+<span id="cb29-183"><a href="#cb29-183" aria-hidden="true" tabindex="-1"></a><span class="in">library(recipes)</span></span>
+<span id="cb29-184"><a href="#cb29-184" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-185"><a href="#cb29-185" aria-hidden="true" tabindex="-1"></a><span class="in">wine_recipe &lt;- recipe(quality ~ ., data = train_tbl) |&gt;</span></span>
+<span id="cb29-186"><a href="#cb29-186" aria-hidden="true" tabindex="-1"></a><span class="in">  # jeśli łączysz oba zbiory, type jest nominalne — w przeciwnym razie ten krok nic nie robi</span></span>
+<span id="cb29-187"><a href="#cb29-187" aria-hidden="true" tabindex="-1"></a><span class="in">  step_impute_median(all_numeric_predictors()) |&gt;</span></span>
+<span id="cb29-188"><a href="#cb29-188" aria-hidden="true" tabindex="-1"></a><span class="in">  step_nzv(all_predictors()) |&gt;</span></span>
+<span id="cb29-189"><a href="#cb29-189" aria-hidden="true" tabindex="-1"></a><span class="in">  step_normalize(all_numeric_predictors())</span></span>
+<span id="cb29-190"><a href="#cb29-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-191"><a href="#cb29-191" aria-hidden="true" tabindex="-1"></a><span class="in">summary(wine_recipe)</span></span>
+<span id="cb29-192"><a href="#cb29-192" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-193"><a href="#cb29-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-194"><a href="#cb29-194" aria-hidden="true" tabindex="-1"></a><span class="fu"># Specyfikacje modeli</span></span>
+<span id="cb29-195"><a href="#cb29-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-196"><a href="#cb29-196" aria-hidden="true" tabindex="-1"></a>W tej części definiujemy cztery różne podejścia do regresji jakości wina.</span>
+<span id="cb29-197"><a href="#cb29-197" aria-hidden="true" tabindex="-1"></a>Każdy model wykorzystuje inne założenia i metody regularyzacji lub uogólnienia.</span>
+<span id="cb29-198"><a href="#cb29-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-199"><a href="#cb29-199" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Regresja liniowa (OLS) – prosta baza porównawcza.</span>
+<span id="cb29-200"><a href="#cb29-200" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-201"><a href="#cb29-201" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>GLMNet – regresja liniowa z regularyzacją L1/L2 (ridge / lasso).</span>
+<span id="cb29-202"><a href="#cb29-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-203"><a href="#cb29-203" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Random Forest (ranger) – model drzew losowych, dobrze radzi sobie z nieliniowościami.</span>
+<span id="cb29-204"><a href="#cb29-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-205"><a href="#cb29-205" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>XGBoost – wydajny model boostingowy, bardzo skuteczny.</span>
+<span id="cb29-206"><a href="#cb29-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-207"><a href="#cb29-207" aria-hidden="true" tabindex="-1"></a><span class="in">```{r models-setup}</span></span>
+<span id="cb29-208"><a href="#cb29-208" aria-hidden="true" tabindex="-1"></a><span class="in"># 1. Linear regression (OLS)</span></span>
+<span id="cb29-209"><a href="#cb29-209" aria-hidden="true" tabindex="-1"></a><span class="in">lm_spec &lt;- linear_reg() |&gt;</span></span>
+<span id="cb29-210"><a href="#cb29-210" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;lm&quot;, importance = &quot;impurity&quot;) |&gt;</span></span>
+<span id="cb29-211"><a href="#cb29-211" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
+<span id="cb29-212"><a href="#cb29-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-213"><a href="#cb29-213" aria-hidden="true" tabindex="-1"></a><span class="in"># 2. Regularized (glmnet)</span></span>
+<span id="cb29-214"><a href="#cb29-214" aria-hidden="true" tabindex="-1"></a><span class="in">glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;</span></span>
+<span id="cb29-215"><a href="#cb29-215" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;glmnet&quot;, importance = &quot;impurity&quot;)</span></span>
+<span id="cb29-216"><a href="#cb29-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-217"><a href="#cb29-217" aria-hidden="true" tabindex="-1"></a><span class="in"># 3. Random forest (ranger)</span></span>
+<span id="cb29-218"><a href="#cb29-218" aria-hidden="true" tabindex="-1"></a><span class="in">rf_spec &lt;- rand_forest(mtry = tune(), trees = 1000, min_n = tune()) |&gt;</span></span>
+<span id="cb29-219"><a href="#cb29-219" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;ranger&quot;, importance = &quot;impurity&quot;) |&gt;</span></span>
+<span id="cb29-220"><a href="#cb29-220" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
+<span id="cb29-221"><a href="#cb29-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-222"><a href="#cb29-222" aria-hidden="true" tabindex="-1"></a><span class="in"># 4. Gradient boosting (xgboost)</span></span>
+<span id="cb29-223"><a href="#cb29-223" aria-hidden="true" tabindex="-1"></a><span class="in">xgb_spec &lt;- boost_tree(trees = tune(), tree_depth = tune(), learn_rate = tune(), loss_reduction = tune(), sample_size = tune()) |&gt;</span></span>
+<span id="cb29-224"><a href="#cb29-224" aria-hidden="true" tabindex="-1"></a><span class="in">  set_engine(&quot;xgboost&quot;) |&gt;</span></span>
+<span id="cb29-225"><a href="#cb29-225" aria-hidden="true" tabindex="-1"></a><span class="in">  set_mode(&quot;regression&quot;)</span></span>
+<span id="cb29-226"><a href="#cb29-226" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-227"><a href="#cb29-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-228"><a href="#cb29-228" aria-hidden="true" tabindex="-1"></a><span class="fu"># Workflow</span></span>
+<span id="cb29-229"><a href="#cb29-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-230"><a href="#cb29-230" aria-hidden="true" tabindex="-1"></a>Workflow on wcześniej zdefiniowaną recepturę (<span class="in">`wine_recipe`</span>) z wybranym modelem uczenia maszynowego, dzięki czemu cały proces przygotowania danych i trenowania odbywa się w jednej strukturze.</span>
+<span id="cb29-231"><a href="#cb29-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-234"><a href="#cb29-234" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-235"><a href="#cb29-235" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(workflows)</span>
+<span id="cb29-236"><a href="#cb29-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-237"><a href="#cb29-237" aria-hidden="true" tabindex="-1"></a>wf_lm <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(lm_spec)</span>
+<span id="cb29-238"><a href="#cb29-238" aria-hidden="true" tabindex="-1"></a>wf_glmnet <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(glmnet_spec)</span>
+<span id="cb29-239"><a href="#cb29-239" aria-hidden="true" tabindex="-1"></a>wf_rf <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(rf_spec)</span>
+<span id="cb29-240"><a href="#cb29-240" aria-hidden="true" tabindex="-1"></a>wf_xgb <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span> <span class="fu">add_recipe</span>(wine_recipe) <span class="sc">|&gt;</span> <span class="fu">add_model</span>(xgb_spec)</span>
+<span id="cb29-241"><a href="#cb29-241" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-242"><a href="#cb29-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-243"><a href="#cb29-243" aria-hidden="true" tabindex="-1"></a><span class="fu"># Walidacja krzyżowa i plan strojenia</span></span>
+<span id="cb29-244"><a href="#cb29-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-245"><a href="#cb29-245" aria-hidden="true" tabindex="-1"></a>Tworzony jest plan walidacji krzyżowej (5-fold CV), który pozwala ocenić modele na różnych podzbiorach danych.</span>
+<span id="cb29-246"><a href="#cb29-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-247"><a href="#cb29-247" aria-hidden="true" tabindex="-1"></a>Dodatkowo określane są zakresy hiperparametrów i siatki (grid) dla każdego modelu, które zostaną użyte w procesie strojenia.</span>
+<span id="cb29-248"><a href="#cb29-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-251"><a href="#cb29-251" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-252"><a href="#cb29-252" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dials)</span>
+<span id="cb29-253"><a href="#cb29-253" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(rsample)</span>
+<span id="cb29-254"><a href="#cb29-254" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-255"><a href="#cb29-255" aria-hidden="true" tabindex="-1"></a>cv_splits <span class="ot">&lt;-</span> <span class="fu">vfold_cv</span>(train_tbl, <span class="at">v =</span> <span class="dv">5</span>, <span class="at">strata =</span> quality)</span>
+<span id="cb29-256"><a href="#cb29-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-257"><a href="#cb29-257" aria-hidden="true" tabindex="-1"></a>glmnet_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(<span class="fu">penalty</span>(), <span class="fu">mixture</span>())</span>
+<span id="cb29-258"><a href="#cb29-258" aria-hidden="true" tabindex="-1"></a>rf_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(</span>
+<span id="cb29-259"><a href="#cb29-259" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mtry</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="fu">floor</span>(<span class="fu">sqrt</span>(<span class="fu">ncol</span>(train_tbl)<span class="sc">-</span><span class="dv">1</span>)))), </span>
+<span id="cb29-260"><a href="#cb29-260" aria-hidden="true" tabindex="-1"></a>  <span class="fu">min_n</span>()</span>
+<span id="cb29-261"><a href="#cb29-261" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-262"><a href="#cb29-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-263"><a href="#cb29-263" aria-hidden="true" tabindex="-1"></a>xgb_params <span class="ot">&lt;-</span> <span class="fu">parameters</span>(</span>
+<span id="cb29-264"><a href="#cb29-264" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tree_depth</span>(), </span>
+<span id="cb29-265"><a href="#cb29-265" aria-hidden="true" tabindex="-1"></a>  <span class="fu">trees</span>(), </span>
+<span id="cb29-266"><a href="#cb29-266" aria-hidden="true" tabindex="-1"></a>  <span class="fu">learn_rate</span>(), </span>
+<span id="cb29-267"><a href="#cb29-267" aria-hidden="true" tabindex="-1"></a>  <span class="fu">loss_reduction</span>(), </span>
+<span id="cb29-268"><a href="#cb29-268" aria-hidden="true" tabindex="-1"></a>  <span class="at">sample_size =</span> <span class="fu">sample_prop</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="fl">1.0</span>))</span>
+<span id="cb29-269"><a href="#cb29-269" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-270"><a href="#cb29-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-271"><a href="#cb29-271" aria-hidden="true" tabindex="-1"></a>xgb_params_final <span class="ot">&lt;-</span> <span class="fu">finalize</span>(xgb_params, train_tbl)</span>
+<span id="cb29-272"><a href="#cb29-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-273"><a href="#cb29-273" aria-hidden="true" tabindex="-1"></a><span class="co"># Create grids</span></span>
+<span id="cb29-274"><a href="#cb29-274" aria-hidden="true" tabindex="-1"></a>glmnet_grid <span class="ot">&lt;-</span> <span class="fu">grid_regular</span>(glmnet_params, <span class="at">levels =</span> <span class="dv">5</span>)</span>
+<span id="cb29-275"><a href="#cb29-275" aria-hidden="true" tabindex="-1"></a>rf_grid <span class="ot">&lt;-</span> <span class="fu">grid_random</span>(rf_params, <span class="at">size =</span> <span class="dv">20</span>)</span>
+<span id="cb29-276"><a href="#cb29-276" aria-hidden="true" tabindex="-1"></a>xgb_grid <span class="ot">&lt;-</span> <span class="fu">grid_random</span>(xgb_params_final, <span class="at">size =</span> <span class="dv">20</span>)</span>
+<span id="cb29-277"><a href="#cb29-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-278"><a href="#cb29-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-279"><a href="#cb29-279" aria-hidden="true" tabindex="-1"></a><span class="fu"># Strojenie modeli (tuning)</span></span>
+<span id="cb29-280"><a href="#cb29-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-281"><a href="#cb29-281" aria-hidden="true" tabindex="-1"></a>Tutaj każdy model jest strojeny (tuningowany) przy użyciu wcześniej zdefiniowanej walidacji i siatek parametrów.</span>
+<span id="cb29-282"><a href="#cb29-282" aria-hidden="true" tabindex="-1"></a>Wyniki oceniamy na podstawie trzech metryk: RMSE, R² i MAE.</span>
+<span id="cb29-283"><a href="#cb29-283" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-286"><a href="#cb29-286" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-287"><a href="#cb29-287" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tune)</span>
+<span id="cb29-288"><a href="#cb29-288" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(glmnet)</span>
+<span id="cb29-289"><a href="#cb29-289" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(xgboost)</span>
+<span id="cb29-290"><a href="#cb29-290" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ranger)</span>
+<span id="cb29-291"><a href="#cb29-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-292"><a href="#cb29-292" aria-hidden="true" tabindex="-1"></a>reg_metrics <span class="ot">&lt;-</span> <span class="fu">metric_set</span>(rmse, rsq, mae)</span>
+<span id="cb29-293"><a href="#cb29-293" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-294"><a href="#cb29-294" aria-hidden="true" tabindex="-1"></a><span class="co"># GLMnet</span></span>
+<span id="cb29-295"><a href="#cb29-295" aria-hidden="true" tabindex="-1"></a>glmnet_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
+<span id="cb29-296"><a href="#cb29-296" aria-hidden="true" tabindex="-1"></a>  wf_glmnet, </span>
+<span id="cb29-297"><a href="#cb29-297" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
+<span id="cb29-298"><a href="#cb29-298" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> glmnet_grid, </span>
+<span id="cb29-299"><a href="#cb29-299" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
+<span id="cb29-300"><a href="#cb29-300" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">save_pred =</span> <span class="cn">FALSE</span>, <span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb29-301"><a href="#cb29-301" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-302"><a href="#cb29-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-303"><a href="#cb29-303" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(glmnet_res)</span>
+<span id="cb29-304"><a href="#cb29-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-305"><a href="#cb29-305" aria-hidden="true" tabindex="-1"></a><span class="co"># Random Forest</span></span>
+<span id="cb29-306"><a href="#cb29-306" aria-hidden="true" tabindex="-1"></a>rf_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
+<span id="cb29-307"><a href="#cb29-307" aria-hidden="true" tabindex="-1"></a>  wf_rf, </span>
+<span id="cb29-308"><a href="#cb29-308" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
+<span id="cb29-309"><a href="#cb29-309" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> rf_grid, </span>
+<span id="cb29-310"><a href="#cb29-310" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
+<span id="cb29-311"><a href="#cb29-311" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb29-312"><a href="#cb29-312" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-313"><a href="#cb29-313" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(rf_res)</span>
+<span id="cb29-314"><a href="#cb29-314" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-315"><a href="#cb29-315" aria-hidden="true" tabindex="-1"></a><span class="co"># XGBoost</span></span>
+<span id="cb29-316"><a href="#cb29-316" aria-hidden="true" tabindex="-1"></a>xgb_res <span class="ot">&lt;-</span> <span class="fu">tune_grid</span>(</span>
+<span id="cb29-317"><a href="#cb29-317" aria-hidden="true" tabindex="-1"></a>  wf_xgb, </span>
+<span id="cb29-318"><a href="#cb29-318" aria-hidden="true" tabindex="-1"></a>  <span class="at">resamples =</span> cv_splits, </span>
+<span id="cb29-319"><a href="#cb29-319" aria-hidden="true" tabindex="-1"></a>  <span class="at">grid =</span> xgb_grid, </span>
+<span id="cb29-320"><a href="#cb29-320" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> reg_metrics,</span>
+<span id="cb29-321"><a href="#cb29-321" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">control_grid</span>(<span class="at">verbose =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb29-322"><a href="#cb29-322" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-323"><a href="#cb29-323" aria-hidden="true" tabindex="-1"></a><span class="fu">collect_metrics</span>(xgb_res)</span>
+<span id="cb29-324"><a href="#cb29-324" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-325"><a href="#cb29-325" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-326"><a href="#cb29-326" aria-hidden="true" tabindex="-1"></a><span class="fu"># Porównanie model - wybór najlepszych parametrów i finalny fit</span></span>
+<span id="cb29-327"><a href="#cb29-327" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-328"><a href="#cb29-328" aria-hidden="true" tabindex="-1"></a>Na podstawie wyników walidacji wybierane są najlepsze hiperparametry (według RMSE), a następnie model jest trenowany ponownie na całym zbiorze treningowym i oceniany na zbiorze testowym.</span>
+<span id="cb29-329"><a href="#cb29-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-330"><a href="#cb29-330" aria-hidden="true" tabindex="-1"></a>Zbierzemy wyniki dla wszystkich modeli i porównamy RMSE oraz R^2.</span>
+<span id="cb29-331"><a href="#cb29-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-334"><a href="#cb29-334" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-335"><a href="#cb29-335" aria-hidden="true" tabindex="-1"></a>best_rf <span class="ot">&lt;-</span> <span class="fu">select_best</span>(rf_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb29-336"><a href="#cb29-336" aria-hidden="true" tabindex="-1"></a>best_glmnet <span class="ot">&lt;-</span> <span class="fu">select_best</span>(glmnet_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb29-337"><a href="#cb29-337" aria-hidden="true" tabindex="-1"></a>best_xgb <span class="ot">&lt;-</span> <span class="fu">select_best</span>(xgb_res, <span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb29-338"><a href="#cb29-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-339"><a href="#cb29-339" aria-hidden="true" tabindex="-1"></a>final_rf <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_rf, best_rf)</span>
+<span id="cb29-340"><a href="#cb29-340" aria-hidden="true" tabindex="-1"></a>final_glmnet <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_glmnet, best_glmnet)</span>
+<span id="cb29-341"><a href="#cb29-341" aria-hidden="true" tabindex="-1"></a>final_xgb <span class="ot">&lt;-</span> <span class="fu">finalize_workflow</span>(wf_xgb, best_xgb)</span>
+<span id="cb29-342"><a href="#cb29-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-343"><a href="#cb29-343" aria-hidden="true" tabindex="-1"></a>fit_rf <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_rf, <span class="at">data =</span> train_tbl)</span>
+<span id="cb29-344"><a href="#cb29-344" aria-hidden="true" tabindex="-1"></a>fit_glmnet <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_glmnet, <span class="at">data =</span> train_tbl)</span>
+<span id="cb29-345"><a href="#cb29-345" aria-hidden="true" tabindex="-1"></a>fit_xgb <span class="ot">&lt;-</span> <span class="fu">fit</span>(final_xgb, <span class="at">data =</span> train_tbl)</span>
+<span id="cb29-346"><a href="#cb29-346" aria-hidden="true" tabindex="-1"></a>fit_lm <span class="ot">&lt;-</span> <span class="fu">fit</span>(wf_lm, <span class="at">data =</span> train_tbl)</span>
+<span id="cb29-347"><a href="#cb29-347" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-348"><a href="#cb29-348" aria-hidden="true" tabindex="-1"></a>evaluate_on_test <span class="ot">&lt;-</span> <span class="cf">function</span>(fit_wf, test_data){</span>
+<span id="cb29-349"><a href="#cb29-349" aria-hidden="true" tabindex="-1"></a>  pred <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit_wf, test_data) <span class="sc">|&gt;</span> <span class="fu">bind_cols</span>(test_data <span class="sc">|&gt;</span> <span class="fu">select</span>(quality))</span>
+<span id="cb29-350"><a href="#cb29-350" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(<span class="at">rmse =</span> yardstick<span class="sc">::</span><span class="fu">rmse_vec</span>(<span class="at">truth =</span> pred<span class="sc">$</span>quality, <span class="at">estimate =</span> pred<span class="sc">$</span>.pred),</span>
+<span id="cb29-351"><a href="#cb29-351" aria-hidden="true" tabindex="-1"></a>         <span class="at">rsq  =</span> yardstick<span class="sc">::</span><span class="fu">rsq_vec</span>(<span class="at">truth =</span> pred<span class="sc">$</span>quality, <span class="at">estimate =</span> pred<span class="sc">$</span>.pred))</span>
+<span id="cb29-352"><a href="#cb29-352" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb29-353"><a href="#cb29-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-354"><a href="#cb29-354" aria-hidden="true" tabindex="-1"></a>res_rf <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_rf, test_tbl)</span>
+<span id="cb29-355"><a href="#cb29-355" aria-hidden="true" tabindex="-1"></a>res_glmnet <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_glmnet, test_tbl)</span>
+<span id="cb29-356"><a href="#cb29-356" aria-hidden="true" tabindex="-1"></a>res_xgb <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_xgb, test_tbl)</span>
+<span id="cb29-357"><a href="#cb29-357" aria-hidden="true" tabindex="-1"></a>res_lm <span class="ot">&lt;-</span> <span class="fu">evaluate_on_test</span>(fit_lm, test_tbl)</span>
+<span id="cb29-358"><a href="#cb29-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-359"><a href="#cb29-359" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(<span class="at">lm =</span> res_lm, <span class="at">glmnet =</span> res_glmnet, <span class="at">rf =</span> res_rf, <span class="at">xgb =</span> res_xgb, <span class="at">.id =</span> <span class="st">&quot;model&quot;</span>)</span>
+<span id="cb29-360"><a href="#cb29-360" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-361"><a href="#cb29-361" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-362"><a href="#cb29-362" aria-hidden="true" tabindex="-1"></a>| Model | RMSE | R² |</span>
+<span id="cb29-363"><a href="#cb29-363" aria-hidden="true" tabindex="-1"></a>|:------|------:|----:|</span>
+<span id="cb29-364"><a href="#cb29-364" aria-hidden="true" tabindex="-1"></a>| **Regresja liniowa (lm)** | 0.685 | 0.346 |</span>
+<span id="cb29-365"><a href="#cb29-365" aria-hidden="true" tabindex="-1"></a>| **GLMNet** | 0.685 | 0.347 |</span>
+<span id="cb29-366"><a href="#cb29-366" aria-hidden="true" tabindex="-1"></a>| **Random Forest (rf)** | 0.607 | 0.496 |</span>
+<span id="cb29-367"><a href="#cb29-367" aria-hidden="true" tabindex="-1"></a>| **XGBoost (xgb)** | 0.585 | 0.522 |</span>
+<span id="cb29-368"><a href="#cb29-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-369"><a href="#cb29-369" aria-hidden="true" tabindex="-1"></a>Modele nieliniowe (**Random Forest** i **XGBoost**) osiągnęły wyraźnie lepsze wyniki niż proste modele liniowe.  </span>
+<span id="cb29-370"><a href="#cb29-370" aria-hidden="true" tabindex="-1"></a>Najniższy błąd RMSE (0.585) oraz najwyższy współczynnik determinacji R² (0.522) uzyskał **model XGBoost**, co wskazuje na jego największą zdolność do odwzorowania zależności między cechami chemicznymi a oceną jakości wina.</span>
+<span id="cb29-371"><a href="#cb29-371" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-372"><a href="#cb29-372" aria-hidden="true" tabindex="-1"></a><span class="fu"># Interpretowalność: ważność cech</span></span>
+<span id="cb29-373"><a href="#cb29-373" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-376"><a href="#cb29-376" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb29-377"><a href="#cb29-377" aria-hidden="true" tabindex="-1"></a>fit_rf <span class="sc">|&gt;</span></span>
+<span id="cb29-378"><a href="#cb29-378" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull_workflow_fit</span>() <span class="sc">|&gt;</span></span>
+<span id="cb29-379"><a href="#cb29-379" aria-hidden="true" tabindex="-1"></a>  vip<span class="sc">::</span><span class="fu">vip</span>(<span class="at">num_features =</span> <span class="dv">15</span>)</span>
+<span id="cb29-380"><a href="#cb29-380" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb29-381"><a href="#cb29-381" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-382"><a href="#cb29-382" aria-hidden="true" tabindex="-1"></a>Dla modelu Random Forest wygenerowano wykres **ważności cech**.  </span>
+<span id="cb29-383"><a href="#cb29-383" aria-hidden="true" tabindex="-1"></a>Najistotniejsze zmienne wpływające na ocenę jakości wina to:</span>
+<span id="cb29-384"><a href="#cb29-384" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-385"><a href="#cb29-385" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**alcohol** – największy pozytywny wpływ na jakość,  </span>
+<span id="cb29-386"><a href="#cb29-386" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**volatile acidity** – silny negatywny wpływ (większa kwasowość → niższa jakość),  </span>
+<span id="cb29-387"><a href="#cb29-387" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**sulphates** i **citric acid** – umiarkowany wpływ dodatni,  </span>
+<span id="cb29-388"><a href="#cb29-388" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**density** i **total sulfur dioxide** – mniejszy, ale negatywny wpływ.  </span>
+<span id="cb29-389"><a href="#cb29-389" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-390"><a href="#cb29-390" aria-hidden="true" tabindex="-1"></a>Oznacza to, że wina o wyższej zawartości alkoholu i umiarkowanej kwasowości są oceniane jako lepsze.</span>
+<span id="cb29-391"><a href="#cb29-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-392"><a href="#cb29-392" aria-hidden="true" tabindex="-1"></a><span class="fu"># Wnioski</span></span>
+<span id="cb29-393"><a href="#cb29-393" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-394"><a href="#cb29-394" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Najlepszym modelem** w tym zadaniu okazał się **XGBoost**, osiągając RMSE = 0.585 i R² = 0.522.  </span>
+<span id="cb29-395"><a href="#cb29-395" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Random Forest** uzyskał podobne, lecz nieco słabsze wyniki RMSE = 0.607, R² = 0.496.  </span>
+<span id="cb29-396"><a href="#cb29-396" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Modele liniowe (OLS i GLMNet)** nie radziły sobie tak dobrze, co sugeruje, że zależności między cechami chemicznymi a jakością wina są **nieliniowe**.  </span>
+<span id="cb29-397"><a href="#cb29-397" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Najważniejszymi cechami determinującymi jakość wina są: **zawartość alkoholu**, **kwasowość lotna**.</span>
+<span id="cb29-398"><a href="#cb29-398" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Dane z zestawu UCI Wine Quality potwierdzają, że właściwości chemiczne wina pozwalają z umiarkowaną skutecznością przewidywać jego ocenę sensoryczną.</span>
+<span id="cb29-399"><a href="#cb29-399" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-400"><a href="#cb29-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-401"><a href="#cb29-401" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-402"><a href="#cb29-402" aria-hidden="true" tabindex="-1"></a></span>
 </code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

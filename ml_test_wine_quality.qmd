@@ -1,0 +1,148 @@
+---
+title: "ml_test - Wine Quality"
+author: "Iwo"
+format: 
+  html:
+    self-contained: true
+    toc: true
+    toc-depth: 4
+    toc-location: right
+    toc-title: "Spis treści"
+    number-sections: true
+    number-depth: 4
+    number-offset: 0
+    code-fold: show
+    code-summary: "Show the code"
+    code-tools: true
+    code-block-bg: true
+    code-block-border-left: "black"
+    code-line-numbers: false
+    code-copy: true
+    html-math-method: katex
+    smooth-scroll: true
+    anchor-sections: true
+    link-external-icon: true
+    link-external-newwindow: true
+    theme:
+        light: cosmo
+        dark: darkly
+    fontsize: 1.0em
+    linestretch: 1.5
+execute:
+  warning: false
+  echo: true
+  error: false
+editor_options: 
+  chunk_output_type: console
+---
+
+# Ładowanie bibliotek
+
+```{r}
+library("tidymodels")
+library("AmesHousing")
+library("skimr")
+library("GGally")
+library("vip")
+library("patchwork")
+library("tibble")
+tidymodels_prefer()
+
+set.seed(222)
+```
+
+# Wczytanie i opis danych
+
+Dane Wine Quality (UCI) dostępne są jako dwa pliki: `winequality-red.csv` i `winequality-white.csv`
+
+Każdy rekord odpowiada jednemu winu i opisany jest zestawem cech numerycznych.
+
+| Nazwa zmiennej | Opis | Jednostka / Zakres | Typ danych |
+|----------------|------|--------------------|-------------|
+| **fixed acidity** | Zawartość kwasów stałych (głównie kwas winowy) | g/dm³ | numeryczna |
+| **volatile acidity** | Kwasowość lotna (głównie kwas octowy); zbyt wysoka powoduje nieprzyjemny zapach | g/dm³ | numeryczna |
+| **citric acid** | Zawartość kwasu cytrynowego – wpływa na świeżość i smak | g/dm³ | numeryczna |
+| **residual sugar** | Cukier resztkowy po fermentacji | g/dm³ | numeryczna |
+| **chlorides** | Ilość chlorków (zawartość soli) | g/dm³ | numeryczna |
+| **free sulfur dioxide** | Wolny dwutlenek siarki – środek konserwujący | mg/dm³ | numeryczna |
+| **total sulfur dioxide** | Całkowity dwutlenek siarki (wolny + związany) | mg/dm³ | numeryczna |
+| **density** | Gęstość wina – zależy od zawartości cukru i alkoholu | g/cm³ | numeryczna |
+| **pH** | Odczyn kwasowości – niższe wartości oznaczają bardziej kwaśne wino | 0–14 | numeryczna |
+| **sulphates** | Zawartość siarczanów – wpływa na stabilność i smak | g/dm³ | numeryczna |
+| **alcohol** | Zawartość alkoholu etylowego | % obj. | numeryczna |
+| **quality** | Ocena jakości wina przez ekspertów | skala 0–10 (zazwyczaj 3–8) | numeryczna / kategoryczna |
+| **type** | Typ wina – czerwone lub białe | `red` / `white` | kategoryczna |
+
+---
+
+Dane te pozwalają analizować, które cechy chemiczne najbardziej wpływają na ocenę jakości wina (`quality`).
+
+
+```{r}
+library(readr)
+
+# download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv", destfile = "winequality-red.csv")
+# download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv", destfile = "winequality-white.csv")
+
+# separator = ";"
+red  <- read_delim("winequality-red.csv", delim = ";", show_col_types = FALSE)
+white <- read_delim("winequality-white.csv", delim = ";", show_col_types = FALSE)
+
+red  <- red |> mutate(type = "red")
+white <- white |> mutate(type = "white")
+
+wine_raw <- red
+
+dim(wine_raw)
+skimr::skim(wine_raw)
+```
+
+# Cel
+
+Celem analizy jest zrozumienie, które cechy chemiczne wpływają na ocenę jakości wina. Zmienna celu to `quality` — ocena sensoryczna w skali całkowitej. Możemy traktować ją jako regresję (ciągła przybliżona) lub jako problem klasyfikacji/porządkowy.
+
+```{r}
+wine_raw |> select(quality) |> skimr::skim()
+
+# rozkład jakości
+library(ggplot2)
+ggplot(wine_raw, aes(quality)) + geom_bar() + ggtitle("Rozkład jakości (quality)")
+```
+
+# Wstępna eksploracja
+
+Szybkie wykresy i korelacje z `quality`.
+
+```{r}
+num_vars <- wine_raw |> select(where(is.numeric)) |> names()
+sel <- c(num_vars[1:8], "quality")
+
+GGally::ggpairs(wine_raw |> select(all_of(sel)) |> na.omit(), lower = list(continuous = "smooth"))
+```
+
+```{r}
+cors <- wine_raw |> select(where(is.numeric)) |> cor(use = "pairwise.complete.obs")
+q_cor <- data.frame(
+  feature = rownames(cors),
+  correlation = cors[, "quality"]
+)
+q_cor |> arrange(desc(abs(correlation))) |> slice(1:10)
+```
+
+### Interpretacja wyników
+
+- **`alcohol`** ma **najsilniejszą dodatnią korelację** z jakością wina – im wyższa zawartość alkoholu, tym wino jest zwykle lepiej oceniane.  
+- **`volatile acidity`** wykazuje **umiarkowaną ujemną korelację** – większa kwasowość lotna (np. kwas octowy) obniża ocenę wina.
+- **`pH`** jest praktycznie niepowiązane z oceną jakości.  
+
+```{r}
+p1 <- ggplot(wine_raw, aes(alcohol)) + geom_histogram(bins=30) + ggtitle("Alcohol")
+p2 <- ggplot(wine_raw, aes(.data[['volatile acidity']])) + geom_histogram(bins=30) + ggtitle("volatile acidity")
+p3 <- ggplot(wine_raw, aes(pH)) + geom_histogram(bins=30) + ggtitle("pH")
+
+p1 + p2 + p3
+```
+
+
+
+

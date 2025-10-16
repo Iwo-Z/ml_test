@@ -129,8 +129,6 @@ q_cor <- data.frame(
 q_cor |> arrange(desc(abs(correlation))) |> slice(1:10)
 ```
 
-### Interpretacja wyników
-
 - **`alcohol`** ma **najsilniejszą dodatnią korelację** z jakością wina – im wyższa zawartość alkoholu, tym wino jest zwykle lepiej oceniane.  
 - **`volatile acidity`** wykazuje **umiarkowaną ujemną korelację** – większa kwasowość lotna (np. kwas octowy) obniża ocenę wina.
 - **`pH`** jest praktycznie niepowiązane z oceną jakości.  
@@ -142,6 +140,80 @@ p3 <- ggplot(wine_raw, aes(pH)) + geom_histogram(bins=30) + ggtitle("pH")
 
 p1 + p2 + p3
 ```
+
+# Podział na zbiór treningowy i testowy
+
+```{r}
+set.seed(2025)
+split <- initial_split(wine_raw, prop = 0.8, strata = quality)
+train_tbl <- training(split)
+test_tbl  <- testing(split)
+
+nrow(train_tbl)
+nrow(test_tbl)
+```
+
+# Receptura
+
+Plan receptury:
+
+- usunięcie braków
+
+- usunięcie cech z niemal zerową wariancją
+
+- normalizacja wszystkich predyktorów numerycznych
+
+```{r recipe}
+library(recipes)
+
+wine_recipe <- recipe(quality ~ ., data = train_tbl) |>
+  # jeśli łączysz oba zbiory, type jest nominalne — w przeciwnym razie ten krok nic nie robi
+  step_impute_median(all_numeric_predictors()) |>
+  step_nzv(all_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
+summary(wine_recipe)
+```
+
+# Specyfikacje modeli
+
+W tej części definiujemy cztery różne podejścia do regresji jakości wina.
+Każdy model wykorzystuje inne założenia i metody regularyzacji lub uogólnienia.
+
+- Regresja liniowa (OLS) – prosta baza porównawcza.
+
+- GLMNet – regresja liniowa z regularyzacją L1/L2 (ridge / lasso).
+
+- Random Forest (ranger) – model drzew losowych, dobrze radzi sobie z nieliniowościami.
+
+- XGBoost – wydajny model boostingowy, bardzo skuteczny.
+
+```{r models-setup}
+# 1. Linear regression (OLS)
+lm_spec <- linear_reg() |>
+  set_engine("lm") |>
+  set_mode("regression")
+
+# 2. Regularized (glmnet)
+glmnet_spec <- linear_reg(penalty = tune(), mixture = tune()) |>
+  set_engine("glmnet")
+
+# 3. Random forest (ranger)
+rf_spec <- rand_forest(mtry = tune(), trees = 1000, min_n = tune()) |>
+  set_engine("ranger") |>
+  set_mode("regression")
+
+# 4. Gradient boosting (xgboost)
+xgb_spec <- boost_tree(trees = tune(), tree_depth = tune(), learn_rate = tune(), loss_reduction = tune(), sample_size = tune()) |>
+  set_engine("xgboost") |>
+  set_mode("regression")
+```
+
+
+
+
+
+
 
 
 

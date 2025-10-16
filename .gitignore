@@ -52,7 +52,6 @@ rsconnect/
 # Renderowane pliki (HTML, PDF, DOCX itp.)
 *_cache/
 *_files/
-*.html
 *.pdf
 *.docx
 

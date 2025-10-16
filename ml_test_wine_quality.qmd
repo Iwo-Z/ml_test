@@ -303,5 +303,77 @@ xgb_res <- tune_grid(
 collect_metrics(xgb_res)
 ```
 
+# Porównanie model - wybór najlepszych parametrów i finalny fit
+
+Na podstawie wyników walidacji wybierane są najlepsze hiperparametry (według RMSE), a następnie model jest trenowany ponownie na całym zbiorze treningowym i oceniany na zbiorze testowym.
+
+Zbierzemy wyniki dla wszystkich modeli i porównamy RMSE oraz R^2.
+
+```{r}
+best_rf <- select_best(rf_res, metric = "rmse")
+best_glmnet <- select_best(glmnet_res, metric = "rmse")
+best_xgb <- select_best(xgb_res, metric = "rmse")
+
+final_rf <- finalize_workflow(wf_rf, best_rf)
+final_glmnet <- finalize_workflow(wf_glmnet, best_glmnet)
+final_xgb <- finalize_workflow(wf_xgb, best_xgb)
+
+fit_rf <- fit(final_rf, data = train_tbl)
+fit_glmnet <- fit(final_glmnet, data = train_tbl)
+fit_xgb <- fit(final_xgb, data = train_tbl)
+fit_lm <- fit(wf_lm, data = train_tbl)
+
+evaluate_on_test <- function(fit_wf, test_data){
+  pred <- predict(fit_wf, test_data) |> bind_cols(test_data |> select(quality))
+  tibble(rmse = yardstick::rmse_vec(truth = pred$quality, estimate = pred$.pred),
+         rsq  = yardstick::rsq_vec(truth = pred$quality, estimate = pred$.pred))
+}
+
+res_rf <- evaluate_on_test(fit_rf, test_tbl)
+res_glmnet <- evaluate_on_test(fit_glmnet, test_tbl)
+res_xgb <- evaluate_on_test(fit_xgb, test_tbl)
+res_lm <- evaluate_on_test(fit_lm, test_tbl)
+
+bind_rows(lm = res_lm, glmnet = res_glmnet, rf = res_rf, xgb = res_xgb, .id = "model")
+```
+
+| Model | RMSE | R² |
+|:------|------:|----:|
+| **Regresja liniowa (lm)** | 0.685 | 0.346 |
+| **GLMNet** | 0.685 | 0.347 |
+| **Random Forest (rf)** | 0.607 | 0.496 |
+| **XGBoost (xgb)** | 0.585 | 0.522 |
+
+Modele nieliniowe (**Random Forest** i **XGBoost**) osiągnęły wyraźnie lepsze wyniki niż proste modele liniowe.  
+Najniższy błąd RMSE (0.585) oraz najwyższy współczynnik determinacji R² (0.522) uzyskał **model XGBoost**, co wskazuje na jego największą zdolność do odwzorowania zależności między cechami chemicznymi a oceną jakości wina.
+
+# Interpretowalność: ważność cech
+
+```{r}
+fit_rf |>
+  pull_workflow_fit() |>
+  vip::vip(num_features = 15)
+```
+
+Dla modelu Random Forest wygenerowano wykres **ważności cech**.  
+Najistotniejsze zmienne wpływające na ocenę jakości wina to:
+
+- **alcohol** – największy pozytywny wpływ na jakość,  
+- **volatile acidity** – silny negatywny wpływ (większa kwasowość → niższa jakość),  
+- **sulphates** i **citric acid** – umiarkowany wpływ dodatni,  
+- **density** i **total sulfur dioxide** – mniejszy, ale negatywny wpływ.  
+
+Oznacza to, że wina o wyższej zawartości alkoholu i umiarkowanej kwasowości są oceniane jako lepsze.
+
+# Wnioski
+
+- **Najlepszym modelem** w tym zadaniu okazał się **XGBoost**, osiągając RMSE = 0.585 i R² = 0.522.  
+- **Random Forest** uzyskał podobne, lecz nieco słabsze wyniki RMSE = 0.607, R² = 0.496.  
+- **Modele liniowe (OLS i GLMNet)** nie radziły sobie tak dobrze, co sugeruje, że zależności między cechami chemicznymi a jakością wina są **nieliniowe**.  
+- Najważniejszymi cechami determinującymi jakość wina są: **zawartość alkoholu**, **kwasowość lotna**.
+- Dane z zestawu UCI Wine Quality potwierdzają, że właściwości chemiczne wina pozwalają z umiarkowaną skutecznością przewidywać jego ocenę sensoryczną.
+
+
+
 
 
